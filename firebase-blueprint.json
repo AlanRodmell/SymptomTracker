@@ -1,0 +1,182 @@
+{
+  "entities": {
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "User profile, cycle preferences, daily reminder config, and pinned quick-log paths.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "profile": {
+          "type": "string",
+          "description": "Active biological profile for cycle tracking visibility",
+          "enum": ["female", "male"],
+          "minLength": 4,
+          "maxLength": 16
+        },
+        "cycleAnchor": {
+          "type": "string",
+          "description": "ISO date (YYYY-MM-DD) of last period start, or empty string if unset",
+          "maxLength": 32
+        },
+        "cycleLength": {
+          "type": "number",
+          "description": "Typical cycle length in days (15 to 60)"
+        },
+        "reminderEnabled": {
+          "type": "boolean",
+          "description": "Whether daily symptom check-in reminders are enabled"
+        },
+        "reminderTime": {
+          "type": "string",
+          "description": "24-hour HH:MM time string for daily reminder",
+          "minLength": 4,
+          "maxLength": 10
+        },
+        "customFavorites": {
+          "type": "array",
+          "description": "Up to 10 pinned symptom paths for 1-tap quick logging"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the last settings update"
+        }
+      },
+      "required": [
+        "uid",
+        "profile",
+        "cycleAnchor",
+        "cycleLength",
+        "reminderEnabled",
+        "reminderTime",
+        "customFavorites",
+        "updatedAt"
+      ]
+    },
+    "SymptomLog": {
+      "title": "SymptomLog",
+      "description": "Individual symptom, baseline, or period-start log entry.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique log identifier matching document ID",
+          "minLength": 1,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "dateISO": {
+          "type": "string",
+          "description": "ISO 8601 datetime string when the symptom occurred",
+          "minLength": 10,
+          "maxLength": 40
+        },
+        "category": {
+          "type": "string",
+          "description": "Top-level category (Physical, Cycle, Baseline)",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "region": {
+          "type": "string",
+          "description": "Body region or cycle group (e.g. Head & Neck, Flow Level)",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "subregion": {
+          "type": "string",
+          "description": "Specific area or sub-category (e.g. Forehead & Temples)",
+          "minLength": 1,
+          "maxLength": 80
+        },
+        "side": {
+          "type": "string",
+          "description": "Laterality if applicable (Left, Right, Both sides, None)",
+          "minLength": 1,
+          "maxLength": 40
+        },
+        "symptom": {
+          "type": "string",
+          "description": "Specific symptom descriptor (e.g. Throbbing, Sharp pain)",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "severity": {
+          "type": "number",
+          "description": "Discomfort/severity score from 0 to 10"
+        },
+        "baseline": {
+          "type": "boolean",
+          "description": "True if this entry marks a symptom-free baseline day"
+        },
+        "periodStart": {
+          "type": "boolean",
+          "description": "True if this entry marks the start of a menstrual period"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional freeform clinical context notes",
+          "maxLength": 1000
+        },
+        "tags": {
+          "type": "array",
+          "description": "Up to 12 contextual trigger tags (Sleep, Stress, Food, etc.)"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Immutable server timestamp when record was first synced"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when record was last modified"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "dateISO",
+        "category",
+        "region",
+        "subregion",
+        "side",
+        "symptom",
+        "severity",
+        "baseline",
+        "periodStart",
+        "notes",
+        "tags",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/UserSettings"
+      },
+      "description": "Per-user settings and cycle configuration document"
+    },
+    "/users/{userId}/logs/{logId}": {
+      "schema": {
+        "$ref": "#/entities/SymptomLog"
+      },
+      "description": "Per-user symptom, baseline, and cycle log entries"
+    }
+  }
+}

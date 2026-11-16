@@ -1,0 +1,188 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Hardened Global Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidLogId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 64 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function parentUserExists(userId) {
+      return exists(/databases/$(database)/documents/users/$(userId)) ||
+             existsAfter(/databases/$(database)/documents/users/$(userId));
+    }
+
+    // 3. Entity Validation Blueprints
+    function isValidUserSettings(data, userId) {
+      return data.keys().hasAll([
+        'uid',
+        'profile',
+        'cycleAnchor',
+        'cycleLength',
+        'reminderEnabled',
+        'reminderTime',
+        'customFavorites',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'uid',
+        'profile',
+        'cycleAnchor',
+        'cycleLength',
+        'reminderEnabled',
+        'reminderTime',
+        'customFavorites',
+        'updatedAt'
+      ]) &&
+      data.uid is string && data.uid.size() >= 1 && data.uid.size() <= 128 &&
+      data.uid.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.uid == request.auth.uid &&
+      data.uid == userId &&
+      data.profile is string && data.profile.size() >= 4 && data.profile.size() <= 16 &&
+      (data.profile == 'female' || data.profile == 'male') &&
+      data.cycleAnchor is string && data.cycleAnchor.size() <= 32 &&
+      data.cycleLength is number && data.cycleLength >= 15 && data.cycleLength <= 60 &&
+      data.reminderEnabled is bool &&
+      data.reminderTime is string && data.reminderTime.size() >= 4 && data.reminderTime.size() <= 10 &&
+      data.customFavorites is list && data.customFavorites.size() <= 10 &&
+      (data.customFavorites.size() == 0 || (data.customFavorites[0] is string && data.customFavorites[0].size() <= 200)) &&
+      data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    function isValidSymptomLog(data, userId, logId) {
+      return data.keys().hasAll([
+        'id',
+        'userId',
+        'dateISO',
+        'category',
+        'region',
+        'subregion',
+        'side',
+        'symptom',
+        'severity',
+        'baseline',
+        'periodStart',
+        'notes',
+        'tags',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.keys().hasOnly([
+        'id',
+        'userId',
+        'dateISO',
+        'category',
+        'region',
+        'subregion',
+        'side',
+        'symptom',
+        'severity',
+        'baseline',
+        'periodStart',
+        'notes',
+        'tags',
+        'createdAt',
+        'updatedAt'
+      ]) &&
+      data.id is string && data.id.size() >= 1 && data.id.size() <= 64 &&
+      data.id.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.id == logId &&
+      data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+      data.userId.matches('^[a-zA-Z0-9_\\-]+$') &&
+      data.userId == request.auth.uid &&
+      data.userId == userId &&
+      data.dateISO is string && data.dateISO.size() >= 10 && data.dateISO.size() <= 40 &&
+      data.category is string && data.category.size() >= 1 && data.category.size() <= 40 &&
+      data.region is string && data.region.size() >= 1 && data.region.size() <= 80 &&
+      data.subregion is string && data.subregion.size() >= 1 && data.subregion.size() <= 80 &&
+      data.side is string && data.side.size() >= 1 && data.side.size() <= 40 &&
+      data.symptom is string && data.symptom.size() >= 1 && data.symptom.size() <= 120 &&
+      data.severity is number && data.severity >= 0 && data.severity <= 10 &&
+      data.baseline is bool &&
+      data.periodStart is bool &&
+      data.notes is string && data.notes.size() <= 1000 &&
+      data.tags is list && data.tags.size() <= 12 &&
+      (data.tags.size() == 0 || (data.tags[0] is string && data.tags[0].size() <= 40)) &&
+      data.createdAt is timestamp &&
+      data.updatedAt is timestamp && data.updatedAt == request.time;
+    }
+
+    // 4. User Settings Collection
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow create: if isOwner(userId) && isValidId(userId) && isValidUserSettings(incoming(), userId);
+      allow update: if isOwner(userId) && isValidId(userId) && isValidUserSettings(incoming(), userId) &&
+        incoming().uid == existing().uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'profile',
+          'cycleAnchor',
+          'cycleLength',
+          'reminderEnabled',
+          'reminderTime',
+          'customFavorites',
+          'updatedAt'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      // 5. Symptom Logs Subcollection
+      match /logs/{logId} {
+        allow get: if isOwner(userId) && isValidId(userId) && isValidLogId(logId) && existing().userId == request.auth.uid;
+        allow list: if isOwner(userId) && isValidId(userId) && existing().userId == request.auth.uid;
+        allow create: if isOwner(userId) && isValidId(userId) && isValidLogId(logId) &&
+          isValidSymptomLog(incoming(), userId, logId) &&
+          incoming().createdAt == request.time &&
+          parentUserExists(userId);
+        allow update: if isOwner(userId) && isValidId(userId) && isValidLogId(logId) &&
+          isValidSymptomLog(incoming(), userId, logId) &&
+          incoming().id == existing().id &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly([
+            'dateISO',
+            'category',
+            'region',
+            'subregion',
+            'side',
+            'symptom',
+            'severity',
+            'baseline',
+            'periodStart',
+            'notes',
+            'tags',
+            'updatedAt'
+          ]) &&
+          parentUserExists(userId);
+        allow delete: if isOwner(userId) && isValidId(userId) && isValidLogId(logId) && existing().userId == request.auth.uid;
+      }
+    }
+  }
+}

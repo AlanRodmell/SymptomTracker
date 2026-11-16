@@ -1,0 +1,6 @@
+{
+  "name": "Fieldnotes — Minimalist Symptom & Cycle Tracker",
+  "description": "A calm, offline-first mobile symptom and cycle tracker with 1-tap logging, real-time cloud sync, and clinical pattern insights.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
